@@ -80,13 +80,13 @@ class HMM_Gen:
             betas[i, :] = next
         return betas
 
-    def log_likelyhood(self, alphas):  # Computes log likelyhood for a set of observations
+    def log_likelihood(self, alphas):  # Computes log likelihood for a set of observations
         end = np.shape(alphas)[0]
         prob = np.sum(alphas[end-1, :])
         log_like = np.log(prob + 1e-300)
         return log_like
 
-    def log_like_corpus(self):  # Computes log likelyhood over the entire corpus, functions as a loss measure
+    def log_like_corpus(self):  # Computes log likelihood over the entire corpus, functions as a loss measure
         log_like = 0
         for phrase in self.corpus:
             _, _, buf = self.forwardsBackwards(phrase)
@@ -106,7 +106,7 @@ class HMM_Gen:
         indices = self.phrase_to_number(phrase)
         alphas = self.forwards(indices)
         betas = self.backwards(indices)
-        log_like = self.log_likelyhood(alphas)
+        log_like = self.log_likelihood(alphas)
 
         return alphas, betas, log_like
 
@@ -168,7 +168,7 @@ class HMM_Gen:
         likelihood_prog = []
         loss = self.log_like_corpus()
         likelihood_prog.append(loss)
-        print('Initial Conditions: ' + 'have a log likelyhood of: ' + str(loss))
+        print('Initial Conditions: ' + 'have a log likelihood of: ' + str(loss))
         for i in range(iterations):
             A = np.zeros_like(self.parameters.A)
             B = np.zeros_like(self.parameters.B)
@@ -187,7 +187,7 @@ class HMM_Gen:
             self.parameters.B = B / B.sum(axis=1, keepdims=True)
             #calc loss
             loss = self.log_like_corpus()
-            print('Iteration: ' + str(i) + ' has a log likelyhood of: ' + str(loss))
+            print('Iteration: ' + str(i) + ' has a log likelihood of: ' + str(loss))
             likelihood_prog.append(loss)
         # plot likelihood_prog
         if plot:
