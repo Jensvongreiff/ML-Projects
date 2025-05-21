@@ -1,2 +1,6 @@
 # ML-Projects
-Some ML-Applications for fun and education
+Personal machine learning projects
+
+# Word2Vec
+
+# Hidden Markov Model
