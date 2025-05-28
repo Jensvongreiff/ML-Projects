@@ -2,15 +2,31 @@ import os
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.embeddings.base import Embeddings
+from langchain.vectorstores import Chroma
 import google.generativeai as genai
 
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 
-def prep_data(path):
+class GeminiEmbeddingWrapper(Embeddings):
+    # embed_documents(texts: List[str]) -> List[List[float]] | Returns list of embeddings from text in docs
+    def embed_documents(self, texts):
+        return [
+            genai.embed_content(model="models/embedding-001", content=t)["embedding"]
+            for t in texts
+        ]
+
+    # embed_query(text: str) -> List[float] |
+    def embed_query(self, text):
+        return self.embed_documents([text])[0]
+
+
+def prep_data(path):  # Takes in path to data, returns list[Document]
     data_path = path  # the name(or path if in different directory) of your data folder
     data_sub_path = os.path.join(data_path, os.listdir(data_path)[0])  # make cleaner
 
@@ -52,8 +68,38 @@ def prep_data(path):
 
     # print('Page content: ', str(chunks[50].page_content), "\n Pages: ", str(chunks[50].metadata["pages"]))
 
-def embed_data():
 
+def build_database(chunks, data_dump='VecDB', save=True):
+    embedding_mod = GeminiEmbeddingWrapper()
+
+    # Originally document based, but page conservation caused problems so metadata must be cleaned
+    texts = [chunk.page_content for chunk in chunks]
+    # ensure each metadata value is a primitive
+    metadatas = [
+        {
+            "source": chunk.metadata.get("source"),  # e.g. a str
+            "page": chunk.metadata.get("page"),  # e.g. an int
+        }
+        for chunk in chunks
+    ]
+
+    vectordatabase = Chroma.from_texts(
+        texts=texts,
+        embedding=embedding_mod,
+        metadatas=metadatas,
+        persist_directory=data_dump
+    )
+
+    if save:
+        vectordatabase.persist()
+
+
+def load_database(data_dir):
+    vectordatabase = Chroma(
+        persist_directory=data_dir,
+        embedding_function=GeminiEmbeddingWrapper()
+    )
+    return vectordatabase
 
 
 # Map each chunk back to page range | Helper function for finding which pages correspond to which chunks
@@ -65,8 +111,33 @@ def find_pages_for_span(start, end, page_offsets):
     return pages_in_chunk
 
 
+def clean_metadata(raw_metadata):
+    """
+    Convert any list-valued metadata into a Chroma-compatible primitive.
+    - If it’s a single-element list of a primitive, unwrap it.
+    - Otherwise JSON-serialize the list.
+    Other types get passed through if already primitive, or str-coerced as a fallback.
+    """
+    clean = {}
+    for key, value in raw_metadata.items():
+        # Allowed primitives
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            clean[key] = value
+        # Handle lists
+        elif isinstance(value, list):
+            if len(value) == 1 and (isinstance(value[0], (str, int, float, bool)) or value[0] is None):
+                clean[key] = value[0]
+            else:
+                clean[key] = json.dumps(value)
+        # Fallback for anything else
+        else:
+            clean[key] = str(value)
+    return clean
+
+
 def main():
     chunks = prep_data('data')
+    build_database(chunks)
 
 
 main()
