@@ -3,7 +3,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings.base import Embeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 import google.generativeai as genai
 
 import json
