@@ -3,7 +3,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings.base import Embeddings
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 import google.generativeai as genai
 
 import json
@@ -69,19 +69,16 @@ def prep_data(path):  # Takes in path to data, returns list[Document]
     # print('Page content: ', str(chunks[50].page_content), "\n Pages: ", str(chunks[50].metadata["pages"]))
 
 
-def build_database(chunks, data_dump='VecDB', save=True):
+def build_database(chunks, data_dump='VecDB', save=True):  # builds the embedding database and saves it to data_dump
     embedding_mod = GeminiEmbeddingWrapper()
+
+    if not save:
+        data_dump = None
 
     # Originally document based, but page conservation caused problems so metadata must be cleaned
     texts = [chunk.page_content for chunk in chunks]
     # ensure each metadata value is a primitive
-    metadatas = [
-        {
-            "source": chunk.metadata.get("source"),  # e.g. a str
-            "page": chunk.metadata.get("page"),  # e.g. an int
-        }
-        for chunk in chunks
-    ]
+    metadatas = [clean_metadata(chunk.metadata) for chunk in chunks]
 
     vectordatabase = Chroma.from_texts(
         texts=texts,
@@ -89,9 +86,6 @@ def build_database(chunks, data_dump='VecDB', save=True):
         metadatas=metadatas,
         persist_directory=data_dump
     )
-
-    if save:
-        vectordatabase.persist()
 
 
 def load_database(data_dir):
@@ -111,7 +105,7 @@ def find_pages_for_span(start, end, page_offsets):
     return pages_in_chunk
 
 
-def clean_metadata(raw_metadata):
+def clean_metadata(raw_metadata):  # The page tracking added non-parsable metadata, this cleans it while preserving info
     """
     Convert any list-valued metadata into a Chroma-compatible primitive.
     - If it’s a single-element list of a primitive, unwrap it.
@@ -140,4 +134,5 @@ def main():
     build_database(chunks)
 
 
-main()
+if __name__ == "__main__":
+    main()
